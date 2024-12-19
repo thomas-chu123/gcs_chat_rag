@@ -5,3 +5,4 @@ pgvector
 numpy
 pandas
 unstructured==0.7.12 # this version fixed
+langchain-common

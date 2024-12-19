@@ -8,6 +8,6 @@ steps:
   args: ['push','us-east1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-embed/gcs-embed:latest']
 images:
 - us-east1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-embed/gcs-embed:latest
-logsBucket: 'gs://ctg-rag-model-001_cloudbuild'
+logsBucket: 'gs://ctg-rag-model-001-cloudbuild'
 options:
   logging: GCS_ONLY
