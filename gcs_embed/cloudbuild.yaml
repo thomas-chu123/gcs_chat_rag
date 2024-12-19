@@ -1,0 +1,13 @@
+#cloudbuild.yaml (if needed)
+steps:
+# Build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t','us-east1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-embed/gcs-embed:latest', '.']
+# Push the container image to Container Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push','us-east1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-embed/gcs-embed:latest']
+images:
+- us-east1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-embed/gcs-embed:latest
+logsBucket: 'gs://ctg-rag-model-001_cloudbuild'
+options:
+  logging: GCS_ONLY

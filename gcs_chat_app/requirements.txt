@@ -1,0 +1,7 @@
+streamlit
+PyPDF2
+langchain
+psycopg2-binary
+numpy
+google-cloud-aiplatform>=1.38.0
+pgvector

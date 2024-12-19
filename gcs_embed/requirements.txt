@@ -1,0 +1,7 @@
+flask
+google-cloud-aiplatform>=1.38.0
+psycopg2-binary
+pgvector
+numpy
+pandas
+unstructured==0.7.12 # this version fixed
