@@ -5,12 +5,12 @@
 # A region is retrieved from the GOOGLE_CLOUD_LOCATION system variable
 # unless you input your own search term; for example, {"searchTerm": "asia"}.
 main:
-params: [input]
-steps:
-- callCRun:
-call: http.get
-args:
-url: 'https://gcs-embed-lbdzp5s2na-uc.a.run.app'
-result: result
-- returnOutput:
-return: '$(result)'
+  params: [input]
+  steps:
+  - callCRun:
+      call: http.get
+      args:
+        url: 'https://gcs-embed-lbdzp5s2na-uc.a.run.app'
+      result: result
+  - returnOutput:
+        return: '$(result)'
