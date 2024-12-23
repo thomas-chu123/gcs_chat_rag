@@ -1,3 +1,7 @@
+import os
+import sys
+from flask import Flask
+import vertexai
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.chains import RetrievalQA
@@ -6,12 +10,9 @@ from langchain_community.vectorstores.pgvector import PGVector
 from langchain_community.document_loaders import GCSDirectoryLoader
 from langchain_google_vertexai import VertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
-from langchain_huggingface import HuggingFaceEmbeddings
-from flask import Flask
+# from langchain_huggingface import HuggingFaceEmbeddings
 # added as it is necessary
-import os
 import unstructured
-import sys
 from dotenv import load_dotenv
 
 env = load_dotenv()
@@ -29,6 +30,11 @@ app = Flask(__name__)
 
 @app.route('/', methods = ['POST', 'GET'])
 def embed():
+    PROJECT_ID = "ctg-rag-model-001"
+    LOCATION = "us-central1"
+
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+
     REQUESTS_PER_MINUTE = 10
     # load document
     if os.environ.get("stage")== 'dev':

@@ -5,6 +5,8 @@ psycopg2-binary
 numpy
 google-cloud-aiplatform>=1.38.0
 pgvector
-langchain_google_vertexai
-langchain_openai
-langchain_huggingface
+langchain-community
+langchain-google-vertexai
+unstructured==0.7.12 # this version fixed
+nltk
+

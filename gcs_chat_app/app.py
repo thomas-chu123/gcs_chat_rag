@@ -1,22 +1,30 @@
 # app.py
+import os
+from dotenv import load_dotenv
 import streamlit as st
+import vertexai
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.embeddings import VertexAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain_community.document_loaders import GCSDirectoryLoader
 from langchain.chains import RetrievalQA
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains import create_retrieval_chain
 from langchain_google_vertexai import VertexAI
-from langchain_google_vertexai import ChatVertexAI
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_openai import OpenAI
-from dotenv import load_dotenv
-import os
+from langchain_google_vertexai import VertexAIEmbeddings
+# from langchain.chains.combine_documents import create_stuff_documents_chain
+# from langchain.chains import create_retrieval_chain
+# from langchain_google_vertexai import ChatVertexAI
+# from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_openai import OpenAI
+
+
 
 REQUESTS_PER_MINUTE = 10
 env = load_dotenv()
+
+PROJECT_ID = "ctg-rag-model-001"
+LOCATION = "us-central1"
+
+vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 # App configuration
 st.set_page_config(
@@ -102,7 +110,7 @@ elif page == "Chat Assistant":
                 top_p=0.8, top_k=40,
                 verbose=True,
             )
-            embeddings = VertexAIEmbeddings(model_name="text-embedding-004")
+            embeddings = VertexAIEmbeddings(model_name="text-embedding-004",project=PROJECT_ID, location=LOCATION)
             CONNECTION_STRING = "postgresql+psycopg2://postgres:P{vLX90{]{Q39$ZA@10.128.128.3:5432/vector-db"
 
         COLLECTION_NAME = 'test_collection'

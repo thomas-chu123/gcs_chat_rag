@@ -2,12 +2,12 @@
 steps:
 # Build the container image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t','us-central1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-frontend/gcsapp:latest', '.']
+  args: ['build', '-t','us-central1-docker.pkg.dev/ctg-rag-model-001/gcs-app/gcs-app:latest', '.']
 # Push the container image to Container Registry
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push','us-central1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-frontend/gcsapp:latest']
+  args: ['push','us-central1-docker.pkg.dev/ctg-rag-model-001/gcs-app/gcs-app:latest']
 images:
-- us-central1-docker.pkg.dev/ctg-rag-model-001/ctg-rag-model-001-frontend/gcs-app:latest
-logsBucket: 'gs://ctg-rag-model-001_cloudbuild'
+- us-central1-docker.pkg.dev/ctg-rag-model-001/gcs-app/gcs-app:latest
+# logsBucket: 'gs://ctg-rag-model-001_cloudbuild'
 options:
   logging: GCS_ONLY

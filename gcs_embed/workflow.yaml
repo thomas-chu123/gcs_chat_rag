@@ -10,7 +10,7 @@ main:
   - callCRun:
       call: http.get
       args:
-        url: 'https://gcs-embed-lbdzp5s2na-uc.a.run.app'
+        url: 'https://gcs-embed-400016938391.us-central1.run.app'
       result: result
   - returnOutput:
         return: '$(result)'
