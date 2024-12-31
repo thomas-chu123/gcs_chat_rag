@@ -1,7 +1,7 @@
 # app.py
 import os
-import tkinter as tk
-from tkinter import filedialog
+# import tkinter as tk
+# from tkinter import filedialog
 from dotenv import load_dotenv
 import streamlit as st
 import vertexai
@@ -23,50 +23,43 @@ from langchain_core.prompts import ChatPromptTemplate
 # from langchain_huggingface import HuggingFaceEmbeddings
 # from langchain_openai import OpenAI
 
-
 REQUESTS_PER_MINUTE = 10
-env = load_dotenv()
-
 PROJECT_ID = "ctg-rag-model-001"
 LOCATION = "us-central1"
-
-vertexai.init(project=PROJECT_ID, location=LOCATION)
-
-# App configuration
-st.set_page_config(
-    page_title="Q&A PDF with VertexAI",
-    page_icon="📝",
-    layout="wide",
-)
-
-# Add custom CSS to resize the sidebar
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] {
-        width: 400px; /* Adjust the width as needed */
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 def get_response(prompt: str):
     pass
 
-def select_folder():
-    root = tk.Tk()
-    root.withdraw()
-    folder_selected = filedialog.askdirectory()
-    root.destroy()
-    return folder_selected
+# def select_folder():
+#     root = tk.Tk()
+#     root.withdraw()
+#     folder_selected = filedialog.askdirectory()
+#     root.destroy()
+#     return folder_selected
 
+def init_func():
+    # App configuration
+    env = load_dotenv()
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    st.set_page_config(
+        page_title="Q&A PDF with VertexAI",
+        page_icon="📝",
+        layout="wide",
+    )
 
-# Side bar Navigation
-pages = ["Chat Assistant", "Embedding Assistant"]
-page = st.sidebar.radio("Assistant Navigation", pages)
+    # Add custom CSS to resize the sidebar
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] {
+            width: 400px; /* Adjust the width as needed */
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-if page == "Embedding Assistant":
+def embed_assistant():
     st.title("📝 Embedding Assistant")
     uploaded_files = st.file_uploader("Choose a PDF file", type="pdf", accept_multiple_files=True)
     if uploaded_files is not None:
@@ -104,7 +97,7 @@ if page == "Embedding Assistant":
     else:
         st.info("Please upload a PDF file")
 
-elif page == "Chat Assistant":
+def chat_assistant():
     # Initialize session_state if it's not already defined
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "How can I help you?"}]
@@ -127,13 +120,13 @@ elif page == "Chat Assistant":
 
         llm = ChatVertexAI(
             model="gemini-1.5-flash",
-            temperature=0.6,
-            top_p=0.8,
-            top_k=40,
+            temperature=0.1,
+            top_p=0.7,
+            top_k=10,
             max_tokens=512,
             max_retries=3,
             verbose=True,
-            # streaming=True,
+            streaming=True,
             stop=None,
             # callbacks=[StreamingStdOutCallbackHandler()],
             # other params...
@@ -156,7 +149,7 @@ elif page == "Chat Assistant":
 
     if prompt := st.chat_input():
         retriever = db.as_retriever(search_type="similarity",
-                                    search_kwargs={"k": 3})
+                                    search_kwargs={"k": 1})
         qa = RetrievalQA.from_chain_type(llm=llm,
                                          chain_type="stuff",
                                          retriever=retriever,
@@ -164,16 +157,44 @@ elif page == "Chat Assistant":
                                          verbose=True)
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
-
         result = qa.invoke({"query": prompt})
-        appendix = "\n\nThe reference content can be found in the below sources documents: \n"
-        # Display source documents
+
+        appendix = ""
+        images_dict = {}
+        # Display the response
         if "source_documents" in result:
-            # st.session_state.messages.append({"role": "assistant", "content": "Source Documents:"})
-            # st.chat_message("assistant").write("Source Documents:")
+            appendix = "\n\nThe reference contents: \n"
+            st.session_state.messages.append({"role": "assistant", "content": "Source Documents:"})
             for id, doc in enumerate(result["source_documents"]):
-                # st.session_state.messages.append({"role": "assistant", "content": doc.page_content})
-                appendix += f"\n\tReference document name: {doc.metadata['source']} in page {str(doc.metadata['page'])}\n"
-        output = result["result"] + appendix
-        st.session_state.messages.append({"role": "assistant", "content": output})
-        st.chat_message("assistant").write(output)
+                appendix += f"\n\tHotel Group: {doc.metadata['group']}"
+                appendix += f"\n\tHotel Region: {doc.metadata['region']}"
+                appendix += f"\n\tHotel Country: {doc.metadata['country']}"
+                appendix += f"\n\tHotel Name: {doc.metadata['name']}"
+                appendix += f"\n\tHotel Document: {doc.metadata['source'].split('/')[-1]} in page {str(doc.metadata['page'])}\n"
+                if doc.metadata.get("type") == "image":
+                    # appendix += f"\tOriginal content: {doc.metadata['original_content']}\n"
+                    # st.image(doc.metadata["original_content"], caption=doc.page_content)
+                    images_dict['content'] = doc.metadata["original_content"]
+                    images_dict['caption'] = doc.page_content
+        output = result["result"]
+        st.chat_message("assistant").write(output+"\n"+appendix)
+        if images_dict:
+            st.image(images_dict['content'], caption=images_dict['caption'])
+        st.session_state.messages.append({"role": "assistant", "content": output+"\n"+appendix})
+
+
+
+def main():
+    init_func()
+    # Side bar Navigation
+    pages = ["Chat Assistant", "Embedding Assistant"]
+    page = st.sidebar.radio("Assistant Navigation", pages)
+
+    if page == "Embedding Assistant":
+        embed_assistant()
+
+    elif page == "Chat Assistant":
+        chat_assistant()
+
+if __name__ == "__main__":
+    main()
