@@ -5,15 +5,16 @@ import uuid
 import vertexai
 from pypdf import PdfReader
 from unstructured.partition.pdf import partition_pdf
+from langchain.schema.messages import HumanMessage, SystemMessage
+from langchain.schema.document import Document
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores.pgvector import PGVector
+from langchain.text_splitter import CharacterTextSplitter
 from langchain_google_vertexai import VertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_google_vertexai import ChatVertexAI
 from langchain_google_vertexai import VertexAIImageCaptioning
-from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.document import Document
+
 from dotenv import load_dotenv
 
 output_path = os.getcwd() + "/img_output"
@@ -187,10 +188,25 @@ def main():
                     print(f"Parser with {os.path.join(root,file)}")
                     clean_output_path()
                     metadata = parser_path_to_text(os.path.join(root,file))
-                    documents = PyPDFLoader(file_path=os.path.join(root,file),extract_images=True).load()
+                    try:
+                        documents = PyPDFLoader(file_path=os.path.join(root,file),extract_images=True).load()
+                        # docs = PdfReader(os.path.join(root,file), ).pages
+                        # for i, page in enumerate(docs):
+                        #     texts = page.extract_text()
+                        #     for image in page.images:
+                        #         with open(output_path + "/" + image.name, "wb") as fp:
+                        #             fp.write(image.data)
+                    except Exception as e:
+                        if "/Filter" in repr(e):
+                            documents = PyPDFLoader(file_path=os.path.join(root,file)).load()
+                        else:
+                            print(f"Error in loading PDF {os.path.join(root,file)}")
+                            print(e)
+                            continue
                     # image_documents = parser_pdf_image(os.path.join(root,file))
                     # documents.extend(image_documents)
-                    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+
+                    text_splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
                     texts = text_splitter.split_documents(documents)
                     for doc in texts:
                         doc.metadata.update(metadata)
