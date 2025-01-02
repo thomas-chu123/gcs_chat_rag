@@ -5,11 +5,13 @@ import uuid
 import vertexai
 from pypdf import PdfReader
 from unstructured.partition.pdf import partition_pdf
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.document import Document
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_vertexai import VertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_google_vertexai import ChatVertexAI
@@ -18,6 +20,8 @@ from langchain_google_vertexai import VertexAIImageCaptioning
 from dotenv import load_dotenv
 
 output_path = os.getcwd() + "/img_output"
+DEBUG = False
+RE_WRITE = False
 
 def clean_output_path():
     for file in os.listdir(output_path):
@@ -33,10 +37,6 @@ def encode_image(image_path):
         return "data:image/jpg;base64," + base64.b64encode(f.read()).decode('utf-8')
 
 def parser_path_to_text(file_path):
-    #H Group
-    #H Region
-    #H Country
-    #H Name
     hotel_info = file_path.split("wedding_poc/")[1]
     hotel_dict = {}
     hotel_list = hotel_info.split("/")
@@ -85,51 +85,50 @@ def extract_image(file_name):
                 fp.write(image.data)
     print(f"All images extracted to {output_path}")
 
-def parser_pdf_image(file_name):
+def pdf_loader(file_name):
     text_elements = []
     table_elements = []
 
     text_summaries = []
     table_summaries = []
 
+    summary_prompt = """
+    Summarize the following {element_type}:
+    {element}
+    """
+    summary_chain = LLMChain(
+        llm=ChatOpenAI(model="gpt-3.5-turbo", max_tokens=1024),
+        prompt=PromptTemplate.from_template(summary_prompt)
+    )
+
+    raw_pdf_elements = partition_pdf(
+        filename=file_name,
+        extract_images_in_pdf=True,
+        infer_table_structure=True,
+        chunking_strategy="by_title",
+        max_characters=4000,
+        new_after_n_chars=3800,
+        combine_text_under_n_chars=2000,
+        extract_image_block_output_dir=output_path,
+    )
+    raw_pdf_elements = partition_pdf(filename=file_name,
+                                     extract_images_in_pdf=True,
+                                     extract_image_block_output_dir=output_path)
+    for elem in raw_pdf_elements:
+        if 'CompositeElement' in repr(elem):
+            text_elements.append(elem.text)
+            summary = summary_chain.run({'element_type': 'text', 'element': e})
+            text_summaries.append(summary)
+
+        elif 'Table' in repr(elem):
+            table_elements.append(elem.text)
+            summary = summary_chain.run({'element_type': 'table', 'element': e})
+            table_summaries.append(summary)
+
+
+def parser_pdf_image(file_name):
     try:
-        # summary_prompt = """
-        # Summarize the following {element_type}:
-        # {element}
-        # """
-        # summary_chain = LLMChain(
-        #     llm=ChatOpenAI(model="gpt-3.5-turbo", max_tokens=1024),
-        #     prompt=PromptTemplate.from_template(summary_prompt)
-        # )
-
-        # Get elements
-        # raw_pdf_elements = partition_pdf(
-        #     filename=file_name,
-        #     extract_images_in_pdf=True,
-        #     infer_table_structure=True,
-        #     chunking_strategy="by_title",
-        #     max_characters=4000,
-        #     new_after_n_chars=3800,
-        #     combine_text_under_n_chars=2000,
-        #     extract_image_block_output_dir=output_path,
-        # )
-        # raw_pdf_elements = partition_pdf(filename=file_name,
-        #                                  extract_images_in_pdf=True,
-        #                                  extract_image_block_output_dir=output_path)
-
         extract_image(file_name)
-
-        # for elem in raw_pdf_elements:
-        #     if 'CompositeElement' in repr(elem):
-        #         text_elements.append(elem.text)
-        #         summary = summary_chain.run({'element_type': 'text', 'element': e})
-        #         text_summaries.append(summary)
-        #
-        #     elif 'Table' in repr(elem):
-        #         table_elements.append(elem.text)
-        #         summary = summary_chain.run({'element_type': 'table', 'element': e})
-        #         table_summaries.append(summary)
-
         # Get image summaries
         image_elements = []
         image_summaries = []
@@ -174,6 +173,18 @@ def main():
     LOCATION = "us-central1"
     vertexai.init(project=PROJECT_ID, location=LOCATION)
 
+    prompt_llm = ChatVertexAI(
+        model="gemini-pro",
+        temperature=0.1,
+        top_p=0.9,
+        top_k=40,
+        max_tokens=256,
+        max_retries=3,
+        verbose=True,
+        streaming=True,
+        stop=None,
+    )
+
     if os.environ.get("stage") == 'dev':
         CONNECTION_STRING = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
     else:
@@ -206,7 +217,26 @@ def main():
                     # image_documents = parser_pdf_image(os.path.join(root,file))
                     # documents.extend(image_documents)
 
-                    text_splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
+                    if RE_WRITE:
+                        for doc in documents:
+                            system = ("You are a experienced text rewriter, "
+                                      "please state only the truth and rewrite the following text for better understanding. "
+                                      "If you need more information, please answer you don't know.")
+                            human = doc.page_content
+                            template = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+                            chain = template | prompt_llm
+                            # fine-tune the user input with llm
+                            updated_prompt = chain.invoke({})
+                            # print("Original Prompt: ", doc.page_content)
+                            # print("Updated Prompt: ", updated_prompt)
+                            if 'need more' in updated_prompt.content:
+                                continue
+                            elif 'don\'t know' in updated_prompt.content:
+                                continue
+                            else:
+                                doc.page_content = updated_prompt.content
+
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=80)
                     texts = text_splitter.split_documents(documents)
                     for doc in texts:
                         doc.metadata.update(metadata)

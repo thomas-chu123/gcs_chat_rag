@@ -29,11 +29,9 @@ from langchain_google_vertexai import ChatVertexAI
 REQUESTS_PER_MINUTE = 10
 PROJECT_ID = "ctg-rag-model-001"
 LOCATION = "us-central1"
-
-
-def get_response(prompt: str):
-    pass
-
+BUILD_TIME = "202501011619"
+DEBUG = False
+RE_WRITE = False
 
 # def select_folder():
 #     root = tk.Tk()
@@ -65,7 +63,7 @@ class ChatBot:
             page_icon="📝",
             layout="wide",
         )
-        # Side bar Navigation
+        # Sidebar Navigation
         self.pages = ["Chat Assistant", "Embedding Assistant"]
         self.page = self.ui_interface.sidebar.radio("Assistant Navigation", self.pages)
 
@@ -82,9 +80,11 @@ class ChatBot:
         )
         # Initialize session_state if it's not already defined
         if "messages" not in self.ui_interface.session_state:
-            self.ui_interface.session_state.messages = [{"role": "assistant", "content": "How can I help you?"}]
-            self.ui_interface.title("📝 Q&A PDF with VertexAI")
-        self.ui_interface.write("Welcome to the Q&A PDF with VertexAI Assistant")
+            self.ui_interface.session_state["messages"] = [
+                {"role": "assistant", "content": "Hi, How I can help you today?", "avatar": "🤖"}
+        ]
+
+        self.ui_interface.write(f"Welcome to the Q&A PDF with VertexAI Assistant (ver: {BUILD_TIME})")
 
         if os.environ.get("stage") == 'dev':
             self.connection_string = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
@@ -107,6 +107,19 @@ class ChatBot:
                 # callbacks=[StreamingStdOutCallbackHandler()],
                 # other params...
             )
+            self.prompt_llm = ChatVertexAI(
+                model="gemini-1.5-flash",
+                temperature=0.6,
+                top_p=0.9,
+                top_k=40,
+                max_tokens=256,
+                max_retries=3,
+                verbose=True,
+                streaming=True,
+                stop=None,
+                # callbacks=[StreamingStdOutCallbackHandler()],
+                # other params...
+            )
             self.embeddings = VertexAIEmbeddings(model_name="text-embedding-004", project=PROJECT_ID, location=LOCATION)
             self.collection_name = 'test_collection'
             self.db = PGVector.from_existing_index(
@@ -118,10 +131,6 @@ class ChatBot:
             self.memory = ConversationBufferMemory(memory_key="chat_history",
                                                    output_key="result",
                                                    return_messages=True)
-            # self.memory = ConversationBufferWindowMemory(memory_key="chat_history",
-            #                                              k=5,
-            #                                              output_key="result",
-            #                                              return_messages=True)
 
             if 'memory' not in self.ui_interface.session_state:
                 self.ui_interface.session_state.memory = self.memory
@@ -141,9 +150,9 @@ class ChatBot:
                                                                   retriever=self.retriever,
                                                                   return_source_documents=True,
                                                                   memory=self.memory,
-                                                                  # get_chat_history=lambda h: h,
-                                                                  output_key='result',)
-             #                                                     verbose=True)
+                                                                  get_chat_history=lambda h: h,
+                                                                  output_key='result',
+                                                                  verbose=True)
             self.loader = GCSDirectoryLoader(project_name="ctg-rag-model-001",
                                              bucket="ctg-rag-model-bucket-001")
 
@@ -151,14 +160,14 @@ class ChatBot:
         self.ui_interface.title("📝 Embedding Assistant")
         uploaded_files = self.ui_interface.file_uploader("Choose a PDF file", type="pdf", accept_multiple_files=True)
         if uploaded_files is not None:
-            if self.ui_interface.button("Gernerate Embedding"):
+            if self.ui_interface.button("Generate Embedding"):
                 for file_item in uploaded_files:
                     self.ui_interface.write(f"File Name: {file_item.name}")
                     temp_file = "./" + file_item.name
                     with open(temp_file, "wb") as file:
                         file.write(file_item.getvalue())
                         file_name = file_item.name
-                    documents = PyPDFLoader(file_path=temp_file).load()
+                    documents = PyPDFLoader(file_path=temp_file, extract_images=True).load()
                     text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=80)
                     texts = text_splitter.split_documents(documents)
 
@@ -173,20 +182,39 @@ class ChatBot:
             self.ui_interface.info("Please upload a PDF file")
 
     def chat_assistant(self, ):
+        self.ui_interface.title("📝 Q&A PDF with VertexAI")
         if "messages" not in self.ui_interface.session_state:
-            self.ui_interface.session_state["messages"] = [{"role": "assistant", "content": "How I can help you?"}]
+            self.ui_interface.session_state["messages"] = [
+                {"role": "assistant", "content": "Hi, how I can help you today?", "avatar": "🤖"}
+            ]
 
         for msg in self.ui_interface.session_state.messages:
-            self.ui_interface.chat_message(msg["role"]).write(msg["content"])
+            self.ui_interface.chat_message(msg["role"], avatar=msg["avatar"]).write(msg["content"])
 
         if prompt := self.ui_interface.chat_input():
-            self.ui_interface.session_state.messages.append({"role": "user", "content": prompt})
-            self.ui_interface.chat_message("user").write(prompt)
-            # print(f"The memory number stored: {len(self.memory.chat_memory.messages)}")
-            # print(f"The session memory number stored: {len(self.ui_interface.session_state.memory.chat_memory.messages)}")
-            # result = self.qa_chain.invoke({"query": prompt})
-            # result = self.qa_chain.invoke({"question": prompt, "chat_history": self.memory.chat_memory.messages})
-            result = self.qa_chain.invoke({"question": prompt})
+            self.ui_interface.session_state.messages.append({"role": "user", "content": prompt, "avatar": "👩‍🎨"})
+            self.ui_interface.chat_message("user", avatar="👩‍🎨").write(prompt)
+            if DEBUG:
+                self.ui_interface.chat_message("assistant",avatar="🤖").write(
+                    f"The memory number stored: {len(self.memory.chat_memory.messages)}")
+                self.ui_interface.chat_message("assistant",avatar="🤖").write(
+                    f"The session memory number stored: {len(self.ui_interface.session_state.memory.chat_memory.messages)}")
+
+            if RE_WRITE:
+                system = ("you are a experienced prompt engineer, "
+                          "please state only the truth and rewrite the following text to a better prompt.")
+                human = prompt
+                template = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+                chain = template | self.llm
+                # fine-tune the user input with llm
+                updated_prompt = chain.invoke({})
+                updated_prompt = updated_prompt.content
+                if DEBUG:
+                    self.ui_interface.chat_message("assistant",avatar="🤖").write(
+                        f"new converted prompt: {updated_prompt}")
+                result = self.qa_chain.invoke({"question": updated_prompt})
+            else:
+                result = self.qa_chain.invoke({"question": prompt})
 
             appendix = ""
             images_dict = {}
@@ -194,25 +222,32 @@ class ChatBot:
             if "source_documents" in result:
                 appendix = "\n\nThe reference contents: \n"
                 for id, doc in enumerate(result["source_documents"]):
-                    appendix += f"\n\tHotel Group: {doc.metadata['group']}"
-                    appendix += f"\n\tHotel Region: {doc.metadata['region']}"
-                    appendix += f"\n\tHotel Country: {doc.metadata['country']}"
-                    appendix += f"\n\tHotel Name: {doc.metadata['name']}"
-                    appendix += f"\n\tHotel Document: {doc.metadata['source'].split('/')[-1]} in page {str(doc.metadata['page'])}\n"
+                    if 'group' in doc.metadata:
+                        appendix += f"\n\tHotel Group: {doc.metadata['group']}"
+                    if 'region' in doc.metadata:
+                        appendix += f"\n\tHotel Region: {doc.metadata['region']}"
+                    if 'country' in doc.metadata:
+                        appendix += f"\n\tHotel Country: {doc.metadata['country']}"
+                    if 'name' in doc.metadata:
+                        appendix += f"\n\tHotel Name: {doc.metadata['name']}"
+                    if 'source' in doc.metadata and 'page' in doc.metadata:
+                        appendix += f"\n\tDocument: {doc.metadata['source'].split('/')[-1]} in page {str(doc.metadata['page'])}\n"
                     if doc.metadata.get("type") == "image":
                         # appendix += f"\tOriginal content: {doc.metadata['original_content']}\n"
                         # self.ui_interface.image(doc.metadata["original_content"], caption=doc.page_content)
                         images_dict['content'] = doc.metadata["original_content"]
                         images_dict['caption'] = doc.page_content
             output = result["result"]
-            self.ui_interface.chat_message("assistant").write(output + "\n" + appendix)
+            self.ui_interface.chat_message("assistant",avatar="🤖").write(output + "\n" + appendix)
             if images_dict:
                 self.ui_interface.image(images_dict['content'], caption=images_dict['caption'])
-            self.ui_interface.session_state.messages.append({"role": "assistant", "content": output + "\n" + appendix})
+            self.ui_interface.session_state.messages.append(
+                {"role": "assistant", "content": output + "\n" + appendix, "avatar": "🤖",}
+            )
 
 
 def main():
-    chatbot = ChatBot(model_name="gemini-1.5-flash", temperature=0.3, top_p=0.9, top_k=40, max_tokens=512, retrival_k=1)
+    chatbot = ChatBot(model_name="gemini-pro", temperature=0.3, top_p=0.9, top_k=30, max_tokens=512, retrival_k=2)
     if chatbot.page == "Embedding Assistant":
         chatbot.embed_assistant()
     elif chatbot.page == "Chat Assistant":
