@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import streamlit as st
 import vertexai
+import time
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
@@ -20,6 +21,7 @@ from langchain_google_vertexai import VertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_google_vertexai import ChatVertexAI
 
+
 # from langchain.chains.combine_documents import create_stuff_documents_chain
 # from langchain.chains import create_retrieval_chain
 # from langchain_google_vertexai import ChatVertexAI
@@ -29,7 +31,7 @@ from langchain_google_vertexai import ChatVertexAI
 REQUESTS_PER_MINUTE = 10
 PROJECT_ID = "ctg-rag-model-001"
 LOCATION = "us-central1"
-BUILD_TIME = "202501011619"
+BUILD_TIME = "202501071340"
 DEBUG = False
 RE_WRITE = False
 
@@ -68,23 +70,16 @@ class ChatBot:
         self.page = self.ui_interface.sidebar.radio("Assistant Navigation", self.pages)
 
         # Add custom CSS to resize the sidebar
-        self.ui_interface.markdown(
-            """
-            <style>
-            [data-testid="stSidebar"] {
-                width: 400px; /* Adjust the width as needed */
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        # Initialize session_state if it's not already defined
-        if "messages" not in self.ui_interface.session_state:
-            self.ui_interface.session_state["messages"] = [
-                {"role": "assistant", "content": "Hi, How I can help you today?", "avatar": "🤖"}
-        ]
-
-        self.ui_interface.write(f"Welcome to the Q&A PDF with VertexAI Assistant (ver: {BUILD_TIME})")
+        # self.ui_interface.markdown(
+        #     """
+        #     <style>
+        #     [data-testid="stSidebar"] {
+        #         width: 400px; /* Adjust the width as needed */
+        #     }
+        #     </style>
+        #     """,
+        #     unsafe_allow_html=True
+        # )
 
         if os.environ.get("stage") == 'dev':
             self.connection_string = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
@@ -101,9 +96,9 @@ class ChatBot:
                 top_k=self.top_k,
                 max_tokens=self.max_tokens,
                 max_retries=3,
-                verbose=True,
-                streaming=True,
-                stop=None,
+                # verbose=True,
+                # streaming=True,
+                # stop=None,
                 # callbacks=[StreamingStdOutCallbackHandler()],
                 # other params...
             )
@@ -128,9 +123,13 @@ class ChatBot:
                 collection_name=self.collection_name,
             )
             # Initialize memory
-            self.memory = ConversationBufferMemory(memory_key="chat_history",
-                                                   output_key="result",
-                                                   return_messages=True)
+            # self.memory = ConversationBufferMemory(memory_key="chat_history",
+            #                                        output_key="result",
+            #                                        return_messages=True)
+            self.memory = ConversationBufferWindowMemory(memory_key="chat_history",
+                                                         output_key="result",
+                                                         return_messages=True,
+                                                         k=5)
 
             if 'memory' not in self.ui_interface.session_state:
                 self.ui_interface.session_state.memory = self.memory
@@ -155,6 +154,10 @@ class ChatBot:
                                                                   verbose=True)
             self.loader = GCSDirectoryLoader(project_name="ctg-rag-model-001",
                                              bucket="ctg-rag-model-bucket-001")
+            self.ui_interface.write(f"Welcome to the Q&A PDF with VertexAI Assistant (ver: {BUILD_TIME})")
+            # time.sleep(3)
+            # Initialize session_state if it's not already defined
+            self.ui_interface.success("Chat is ready")
 
     def embed_assistant(self, ):
         self.ui_interface.title("📝 Embedding Assistant")
@@ -182,6 +185,7 @@ class ChatBot:
             self.ui_interface.info("Please upload a PDF file")
 
     def chat_assistant(self, ):
+        result = None
         self.ui_interface.title("📝 Q&A PDF with VertexAI")
         if "messages" not in self.ui_interface.session_state:
             self.ui_interface.session_state["messages"] = [
@@ -238,7 +242,7 @@ class ChatBot:
                         images_dict['content'] = doc.metadata["original_content"]
                         images_dict['caption'] = doc.page_content
             output = result["result"]
-            self.ui_interface.chat_message("assistant",avatar="🤖").write(output + "\n" + appendix)
+            self.ui_interface.chat_message("assistant",avatar="🤖").write(output.replace('$','\$') + "\n" + appendix)
             if images_dict:
                 self.ui_interface.image(images_dict['content'], caption=images_dict['caption'])
             self.ui_interface.session_state.messages.append(
@@ -247,7 +251,7 @@ class ChatBot:
 
 
 def main():
-    chatbot = ChatBot(model_name="gemini-pro", temperature=0.3, top_p=0.9, top_k=30, max_tokens=512, retrival_k=2)
+    chatbot = ChatBot(model_name="gemini-pro", temperature=0.6, top_p=0.6, top_k=20, max_tokens=512, retrival_k=3)
     if chatbot.page == "Embedding Assistant":
         chatbot.embed_assistant()
     elif chatbot.page == "Chat Assistant":

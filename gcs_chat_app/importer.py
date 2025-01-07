@@ -20,7 +20,7 @@ from langchain_google_vertexai import VertexAIImageCaptioning
 from dotenv import load_dotenv
 
 output_path = os.getcwd() + "/img_output"
-DEBUG = False
+DEBUG = True
 RE_WRITE = False
 
 def clean_output_path():
@@ -37,7 +37,7 @@ def encode_image(image_path):
         return "data:image/jpg;base64," + base64.b64encode(f.read()).decode('utf-8')
 
 def parser_path_to_text(file_path):
-    hotel_info = file_path.split("wedding_poc/")[1]
+    hotel_info = file_path.split("Training_01071113/")[1]
     hotel_dict = {}
     hotel_list = hotel_info.split("/")
     if len(hotel_list) > 4:
@@ -191,7 +191,7 @@ def main():
         CONNECTION_STRING = "postgresql+psycopg2://postgres:P{vLX90{]{Q39$ZA@10.128.128.3:5432/vector-db"
     embeddings = VertexAIEmbeddings(model_name="text-embedding-004")
 
-    file_folder = os.getcwd() + "/wedding_poc/"
+    file_folder = os.getcwd() + "/Training_01071113/"
     for root, dirs, files in os.walk(file_folder):
         for file in files:
             if file.endswith(".pdf"):
@@ -200,7 +200,7 @@ def main():
                     clean_output_path()
                     metadata = parser_path_to_text(os.path.join(root,file))
                     try:
-                        documents = PyPDFLoader(file_path=os.path.join(root,file),extract_images=True).load()
+                        documents = PyPDFLoader(file_path=os.path.join(root,file),extract_images=False).load()
                         # docs = PdfReader(os.path.join(root,file), ).pages
                         # for i, page in enumerate(docs):
                         #     texts = page.extract_text()
