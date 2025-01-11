@@ -33,7 +33,7 @@ class Parser():
     def __init__(self):
         env = load_dotenv()
         if os.environ.get("stage") == 'dev':
-            self.connection_string = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
+            self.connection_string = "postgresql+psycopg2://user:password@192.168.0.185:5432/vector-db"
             self.prompt_llm = ChatOllama(model="llama3.1", temperature=0.1)
             self.json_llm = ChatOllama(model="llama3.1", temperature=0.1, format="json")
             self.embeddings = OllamaEmbeddings(model="nomic-embed-text", )
@@ -195,11 +195,9 @@ class Parser():
                 {{
                   "name": "Hilton La Romana",
                   "group": "Hilton All Inclusive",
-                  "location": {{
-                    "country": "Dominican Republic",
-                    "region": "Caribbean",
-                    "city": "Bayahibe"
-                  }},
+                  "country": "Dominican Republic",
+                  "region": "Caribbean",
+                  "city": "Bayahibe",
                   "collection": "hilton_la_romana",
                   "description": "Hilton La Romana Resort & Water Park is an all-inclusive family resort located on
                   the southeastern coast of the Dominican Republic in Bayahibe, La Romana. The resort features a new
@@ -217,11 +215,9 @@ class Parser():
                 {{
                   "name": "{hotel_name}",
                   "group": "{hotel_group}",
-                  "location": {{
-                    "country": "",
-                    "region": ""
-                    "city": ""
-                  }},
+                  "country": "",
+                  "region": ""
+                  "city": "",
                   "collection": "",
                   "description": ""
                 }},

@@ -9,6 +9,8 @@ import time
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.chains.query_constructor.schema import AttributeInfo
+from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain.chains import RetrievalQA
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
@@ -83,7 +85,7 @@ class ChatBot:
         # )
 
         if os.environ.get("stage") == 'dev':
-            self.connection_string = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
+            self.connection_string = "postgresql+psycopg2://user:password@192.168.0.185:5432/vector-db"
             self.llm = ChatOllama(model="llama3.1", temperature=self.temperature)
             self.json_llm = ChatOllama(model="llama3.1", temperature=0.1, format="json")
             self.embeddings = OllamaEmbeddings(model="nomic-embed-text", )
@@ -143,8 +145,59 @@ class ChatBot:
             else:
                 self.memory = self.ui_interface.session_state.memory
 
-            self.retriever = self.db.as_retriever(search_type="similarity",
-                                                  search_kwargs={"k": self.retrival_k}, )
+            metadata_field_info = [
+                AttributeInfo(
+                    name="name",
+                    description="the name of the hotel",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="group",
+                    description="the hotel group which the hotel belongs to",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="country",
+                    description="the country which the hotel is located",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="region",
+                    description="the region which the hotel is located",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="city",
+                    description="the city which the hotel is located",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="collection",
+                    description="the collection ID in the database",
+                    type="string",
+                ),
+                AttributeInfo(
+                    name="description",
+                    description="a brief description of the hotel",
+                    type="string"
+                ),
+            ]
+
+            document_content_description = "Brief summary of a hotel"
+            self.retriever = SelfQueryRetriever.from_llm(
+                self.llm,
+                self.db,
+                document_content_description,
+                metadata_field_info,
+                enable_limit=False,
+                return_source_documents=True,
+                verbose=True,
+                search_type="similarity",
+                search_kwargs={"k": self.retrival_k},
+            )
+
+            # self.retriever = self.db.as_retriever(search_type="similarity",
+            #                                       search_kwargs={"k": self.retrival_k}, )
             # self.qa_chain = RetrievalQA.from_chain_type(llm=self.llm,
             #                                  chain_type="stuff",
             #                                  retriever=self.retriever,

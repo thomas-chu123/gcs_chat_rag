@@ -8,3 +8,5 @@ unstructured==0.7.12 # this version fixed
 langchain-community
 langchain-google-vertexai
 nltk
+langchain_ollama
+lark
