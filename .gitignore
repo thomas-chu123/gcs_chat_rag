@@ -2,4 +2,7 @@
 venv
 __pycache__
 *.pyc
-.idea
+.idea/*.*
+.idea/*.iml
+.idea/
+.env
