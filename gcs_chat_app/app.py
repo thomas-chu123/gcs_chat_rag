@@ -20,7 +20,8 @@ from langchain_community.document_loaders import GCSDirectoryLoader
 from langchain_google_vertexai import VertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_google_vertexai import ChatVertexAI
-
+from langchain_ollama import ChatOllama
+from langchain_ollama import OllamaEmbeddings
 
 # from langchain.chains.combine_documents import create_stuff_documents_chain
 # from langchain.chains import create_retrieval_chain
@@ -83,11 +84,12 @@ class ChatBot:
 
         if os.environ.get("stage") == 'dev':
             self.connection_string = "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
+            self.llm = ChatOllama(model="llama3.1", temperature=self.temperature)
+            self.json_llm = ChatOllama(model="llama3.1", temperature=0.1, format="json")
+            self.embeddings = OllamaEmbeddings(model="nomic-embed-text", )
+
         else:
             self.connection_string = "postgresql+psycopg2://postgres:P{vLX90{]{Q39$ZA@10.128.128.3:5432/vector-db"
-
-        with self.ui_interface.spinner('Wait for it...'):
-            # App configuration
             vertexai.init(project=PROJECT_ID, location=LOCATION)
             self.llm = ChatVertexAI(
                 model=self.model_name,
@@ -116,6 +118,11 @@ class ChatBot:
                 # other params...
             )
             self.embeddings = VertexAIEmbeddings(model_name="text-embedding-004", project=PROJECT_ID, location=LOCATION)
+
+
+        with self.ui_interface.spinner('Wait for it...'):
+            # App configuration
+
             self.collection_name = 'test_collection'
             self.db = PGVector.from_existing_index(
                 embedding=self.embeddings,
