@@ -3,7 +3,17 @@ import os
 import base64
 import uuid
 import json
-from typing import List, Dict, Any, Annotated, Union, Optional, Tuple, TypedDict, Literal
+from typing import (
+    List,
+    Dict,
+    Any,
+    Annotated,
+    Union,
+    Optional,
+    Tuple,
+    TypedDict,
+    Literal,
+)
 import vertexai
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -29,14 +39,18 @@ IMG_FOLDER = os.getcwd() + "/img_output"
 DATA_FOLDER = os.getcwd() + "/Training_01112025/"
 
 
-class Parser():
+class Parser:
     def __init__(self):
         env = load_dotenv()
-        if os.environ.get("stage") == 'dev':
-            self.connection_string = "postgresql+psycopg2://user:password@192.168.0.185:5432/vector-db"
+        if os.environ.get("stage") == "dev":
+            self.connection_string = (
+                "postgresql+psycopg2://user:password@127.0.0.1:5432/vector-db"
+            )
             self.prompt_llm = ChatOllama(model="llama3.1", temperature=0.1)
             self.json_llm = ChatOllama(model="llama3.1", temperature=0.1, format="json")
-            self.embeddings = OllamaEmbeddings(model="nomic-embed-text", )
+            self.embeddings = OllamaEmbeddings(
+                model="nomic-embed-text",
+            )
         else:
             PROJECT_ID = "ctg-rag-model-001"
             LOCATION = "us-central1"
@@ -60,19 +74,23 @@ class Parser():
         hotel_info_list = []
 
         for root, dirs, files in os.walk(DATA_FOLDER):
-            for file in tqdm(files):
+            for file in files:
                 if file.endswith(".pdf"):
                     try:
                         print(f"Parser with {os.path.join(root, file)}")
                         self.clean_output_path()
                         metadata = self.parser_path_to_text(os.path.join(root, file))
 
-                        already_seen = {d['name'] for d in hotel_info_list}
-                        if metadata.get('name') not in already_seen:
-                            hotel_info_list.append(metadata)
+                        already_seen = {d["name"] for d in hotel_info_list}
+
+                        if metadata.get("name") != metadata.get("group"):
+                            if metadata.get("name") not in already_seen:
+                                hotel_info_list.append(metadata)
 
                         try:
-                            documents = PyPDFLoader(file_path=os.path.join(root, file), extract_images=False).load()
+                            documents = PyPDFLoader(
+                                file_path=os.path.join(root, file), extract_images=False
+                            ).load()
                             # docs = PdfReader(os.path.join(root,file), ).pages
                             # for i, page in enumerate(docs):
                             #     texts = page.extract_text()
@@ -81,33 +99,41 @@ class Parser():
                             #             fp.write(image.data)
                         except Exception as e:
                             if "/Filter" in repr(e):
-                                documents = PyPDFLoader(file_path=os.path.join(root, file)).load()
+                                documents = PyPDFLoader(
+                                    file_path=os.path.join(root, file)
+                                ).load()
                             else:
-                                print(f"Error in loading PDF {os.path.join(root, file)}")
+                                print(
+                                    f"Error in loading PDF {os.path.join(root, file)}"
+                                )
                                 print(e)
                                 continue
                         # image_documents = parser_pdf_image(os.path.join(root,file))
                         # documents.extend(image_documents)
 
                         if RE_WRITE:
-                            for doc in tqdm(documents):
-                                print(f"Rewriting content with {doc.metadata['page']}")
-                                system = ()
+                            for doc in documents:
+                                print(
+                                    f"- Rewriting content with page: {doc.metadata['page']}"
+                                )
+
                                 prompt = f"""
                                     You are a content rewriter, please state only the truth and rewrite the 
-                                    following content for better understanding. 
+                                    following content for better understanding only in English. 
                                     Don't add any new information which is not existed in the content.
                                     Remove all the contact information and any other personal information.
-                                    Output the changed content only in the response without the more explanation or 
-                                    wording.  
+                                    Output the changed content only in the response with English only 
+                                    without the more explanation or wording.  
                                     
                                     Content:
                                     {doc.page_content}
-                                """
+                                """.strip()
                                 messages = [
-                                    ("system",
-                                     "You are a content rewriter, please state only the truth and rewrite "
-                                     "the following content for better understanding."),
+                                    (
+                                        "system",
+                                        "You are a content rewriter, please state only the truth and rewrite "
+                                        "the following content for better understanding.",
+                                    ),
                                     ("human", prompt),
                                 ]
                                 # template = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
@@ -117,27 +143,37 @@ class Parser():
                                     print("Original Prompt: ", doc.page_content)
                                     print("Updated Prompt: ", updated_prompt.content)
 
-                                if 'need more' in updated_prompt.content:
+                                if "need more" in updated_prompt.content:
                                     continue
-                                elif 'don\'t know' in updated_prompt.content:
+                                elif "don't know" in updated_prompt.content:
                                     continue
                                 elif "no content provided" in updated_prompt.content:
                                     continue
                                 else:
                                     doc.page_content = updated_prompt.content
 
-                        text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=80)
+                        text_splitter = RecursiveCharacterTextSplitter(
+                            chunk_size=600, chunk_overlap=80
+                        )
                         texts = text_splitter.split_documents(documents)
                         for doc in texts:
                             doc.metadata.update(metadata)
 
-                        COLLECTION_NAME = 'test_collection'
                         db = PGVector.from_documents(
                             embedding=self.embeddings,
                             documents=texts,
                             connection_string=self.connection_string,
-                            collection_name=COLLECTION_NAME,
+                            collection_name="default",
                         )
+
+                        db = PGVector.from_documents(
+                            embedding=self.embeddings,
+                            documents=texts,
+                            connection_string=self.connection_string,
+                            collection_name=metadata.get("collection"),
+                        )
+
+                        print(f"Embedding Metadata: {metadata}")
                         print(f"Embedding is done with {os.path.join(root, file)}")
                     except Exception as e:
                         print(f"Error in embedding {os.path.join(root, file)}")
@@ -146,25 +182,31 @@ class Parser():
         # embed all the hotel_info_list to database
         all_hotel_info = ""
         for hotel in hotel_info_list:
-            hotel_meta = json.dumps(hotel)
-            all_hotel_info += hotel_meta + "\n"
+            hotel_string = (
+                f"'{hotel.get('name')}' Hotel which is belong to '{hotel.get('group')}' group and located in '{hotel.get('country')}' country"
+                f", '{hotel.get('region')}' region and '{hotel.get('city')}' city, and the collection ID is '{hotel.get('collection')}'\n"
+            )
+            # hotel_meta = json.dumps(hotel)
+            all_hotel_info += hotel_string
 
-        document = Document(
+        documents = Document(
             page_content=all_hotel_info,
             metadata={
                 "source": "hotel_info",
                 "page": 0,
-            }
+            },
         )
-        COLLECTION_NAME = 'test_collection'
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=0)
+        texts = text_splitter.split_documents([documents])
+
+        COLLECTION_NAME = "index"
         db = PGVector.from_documents(
             embedding=self.embeddings,
-            documents=[document],
+            documents=texts,
             connection_string=self.connection_string,
             collection_name=COLLECTION_NAME,
         )
-        print(f"Embedding is done with hotel_info_list")
-
+        print(f"Embedding is done with the hotel list:\n {all_hotel_info}")
 
     def clean_output_path(self):
         for file in os.listdir(IMG_FOLDER):
@@ -177,12 +219,25 @@ class Parser():
 
     def encode_image(self, image_path: str):
         with open(image_path, "rb") as f:
-            return "data:image/jpg;base64," + base64.b64encode(f.read()).decode('utf-8')
+            return "data:image/jpg;base64," + base64.b64encode(f.read()).decode("utf-8")
 
     def parser_path_to_text(self, file_path: str):
-        hotel_group = file_path.split(DATA_FOLDER)[1].split("/")[0]
-        hotel_name = file_path.split(DATA_FOLDER)[1].split("/")[-2]
+        hotel_group = file_path.split(DATA_FOLDER)[1].split("/")[0].rstrip().lstrip()
+        hotel_name = file_path.split(DATA_FOLDER)[1].split("/")[-2].rstrip().lstrip()
         hotel_dict = {}
+
+        if "Information" in hotel_name:
+            hotel_name = hotel_group
+            template = {
+                "name": hotel_name,
+                "group": hotel_group,
+                "country": "",
+                "region": "",
+                "city": "",
+                "collection": hotel_group.lower().replace(" ", "_"),
+                "description": "general information",
+            }
+            return template
 
         prompt = f"""
             Follow below example and introduction to identify all information in the below JSON table.
@@ -198,7 +253,7 @@ class Parser():
                   "country": "Dominican Republic",
                   "region": "Caribbean",
                   "city": "Bayahibe",
-                  "collection": "hilton_la_romana",
+                  "collection": "hilton_all_inclusive",
                   "description": "Hilton La Romana Resort & Water Park is an all-inclusive family resort located on
                   the southeastern coast of the Dominican Republic in Bayahibe, La Romana. The resort features a new
                   water park with thrilling slides, a lazy river, and a kids' splash zone, along with multiple dining
@@ -226,7 +281,10 @@ class Parser():
             """
 
         messages = [
-            ("system", "You are a helpful assistant. Extract information from the following JSON table."),
+            (
+                "system",
+                "You are a helpful assistant. Extract information from the following JSON table.",
+            ),
             ("human", prompt),
         ]
 
@@ -238,18 +296,15 @@ class Parser():
     def summarize_image(encoded_image):
         prompt = [
             SystemMessage(content="You are a bot that is good at analyzing images."),
-            HumanMessage(content=[
-                {
-                    "type": "text",
-                    "text": "Describe the contents of this image."
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{encoded_image}"
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "Describe the contents of this image."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
                     },
-                },
-            ])
+                ]
+            ),
         ]
         response = VertexAIImageCaptioning().invoke(input=encoded_image)
         return response
@@ -276,7 +331,7 @@ class Parser():
         """
         summary_chain = LLMChain(
             llm=ChatOpenAI(model="gpt-3.5-turbo", max_tokens=1024),
-            prompt=PromptTemplate.from_template(summary_prompt)
+            prompt=PromptTemplate.from_template(summary_prompt),
         )
 
         raw_pdf_elements = partition_pdf(
@@ -289,18 +344,24 @@ class Parser():
             combine_text_under_n_chars=2000,
             extract_image_block_output_dir=IMG_FOLDER,
         )
-        raw_pdf_elements = partition_pdf(filename=file_name,
-                                         extract_images_in_pdf=True,
-                                         extract_image_block_output_dir=IMG_FOLDER, )
+        raw_pdf_elements = partition_pdf(
+            filename=file_name,
+            extract_images_in_pdf=True,
+            extract_image_block_output_dir=IMG_FOLDER,
+        )
         for elem in raw_pdf_elements:
-            if 'CompositeElement' in repr(elem):
+            if "CompositeElement" in repr(elem):
                 text_elements.append(elem.text)
-                summary = summary_chain.run({'element_type': 'text', 'element': elem.text})
+                summary = summary_chain.run(
+                    {"element_type": "text", "element": elem.text}
+                )
                 text_summaries.append(summary)
 
-            elif 'Table' in repr(elem):
+            elif "Table" in repr(elem):
                 table_elements.append(elem.text)
-                summary = summary_chain.run({'element_type': 'table', 'element': elem.text})
+                summary = summary_chain.run(
+                    {"element_type": "table", "element": elem.text}
+                )
                 table_summaries.append(summary)
 
     def parser_pdf_image(self, file_name: str):
@@ -312,8 +373,11 @@ class Parser():
             documents = []
             retrieve_contents = []
 
-            for img in sorted(os.listdir(IMG_FOLDER), key=lambda x: int(''.join(filter(str.isdigit, x)) or 0)):
-                if img.endswith(('.png', '.jpg', '.jpeg')):
+            for img in sorted(
+                os.listdir(IMG_FOLDER),
+                key=lambda x: int("".join(filter(str.isdigit, x)) or 0),
+            ):
+                if img.endswith((".png", ".jpg", ".jpeg")):
                     image_path = os.path.join(IMG_FOLDER, img)
                     encoded_image = self.encode_image(image_path)
                     image_elements.append(encoded_image)
@@ -326,12 +390,12 @@ class Parser():
                 doc = Document(
                     page_content=summary,
                     metadata={
-                        'id': uuid_index,
-                        'type': 'image',
-                        'original_content': elem,
-                        'source': file_name,
-                        'page': 0
-                    }
+                        "id": uuid_index,
+                        "type": "image",
+                        "original_content": elem,
+                        "source": file_name,
+                        "page": 0,
+                    },
                 )
                 retrieve_contents.append((uuid_index, summary))
                 documents.append(doc)
